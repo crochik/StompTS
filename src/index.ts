@@ -71,24 +71,27 @@ class Frame {
     suitable to be sent to the server
     */
     toString() {
-        var lines, name, skipContentLength, value, _ref;
-        lines = [this.command];
-        skipContentLength = this.headers['content-length'] === false ? true : false;
+        var lines = [this.command];
+
+        var skipContentLength = this.headers['content-length'] === false ? true : false;
         if (skipContentLength) {
             delete this.headers['content-length'];
         }
-        _ref = this.headers;
-        for (name in _ref) {
-            if (!_ref.hasOwnProperty(name)) {
+        
+        for (var name in this.headers) {
+            if (!this.headers.hasOwnProperty(name)) {
                 continue;
             }
-            value = _ref[name];
+            var value = this.headers[name];
             lines.push("" + name + ":" + value);
         }
+
         if (this.body && !skipContentLength) {
             lines.push("content-length:" + (Frame.sizeOfUTF8(this.body)));
         }
+
         lines.push(Byte.LF + this.body);
+
         return lines.join(Byte.LF);
     }
 
@@ -100,9 +103,9 @@ class Frame {
         if (s) {
             let str = encodeURI(s).match(/%..|./g);
             return str != null ? str.length : 0;
-        } else {
-            return 0;
-        }
+        } 
+        
+        return 0;
     }
 
     /*
@@ -111,14 +114,14 @@ class Frame {
     static unmarshallSingle(data: string) {
         // search for 2 consecutives LF byte to split the command
         // and headers from the body
-        var body, chr, command, divider, headerLines, headers: IHeaders, i, idx, len, line, start, trim, _i, _j, _len, _ref, _ref1;
-        divider = data.search(RegExp("" + Byte.LF + Byte.LF));
-        headerLines = data.substring(0, divider).split(Byte.LF);
-        command = headerLines.shift();
-        headers = {};
-        trim = (str: string) => str.replace(/^\s+|\s+$/g, '');
+        var body, chr, i, idx, len, line, start, _i, _j, _len, _ref1;
+        var divider = data.search(RegExp("" + Byte.LF + Byte.LF));
+        var headerLines = data.substring(0, divider).split(Byte.LF);
+        var command = headerLines.shift();
+        var headers : IHeaders = {};
+        var trim = (str: string) => str.replace(/^\s+|\s+$/g, '');
 
-        _ref = headerLines.reverse();
+        var _ref = headerLines.reverse();
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             line = _ref[_i];
             idx = line.indexOf(':');
@@ -143,6 +146,7 @@ class Frame {
         if (!command) {
             throw new Error(`Comamnd should not be null??`);
         }
+
         return new Frame(command, headers, body);
     }
 
@@ -153,10 +157,8 @@ class Frame {
     frame can be fragmented across multiple messages.
     */
     static unmarshall(datas: string): IUnmarshall {
-        var frame, frames, last_frame: string, r: IUnmarshall;
-        frames = datas.split(RegExp("" + Byte.NULL + Byte.LF + "*"));
-
-        r = {
+        let frames = datas.split(RegExp("" + Byte.NULL + Byte.LF + "*"));
+        let r : IUnmarshall = {
             frames: [],
             partial: ''
         };
@@ -166,18 +168,19 @@ class Frame {
             _ref = frames.slice(0, -1);
             _results = [];
             for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-                frame = _ref[_i];
+                var frame = _ref[_i];
                 _results.push(Frame.unmarshallSingle(frame));
             }
             return _results;
         })();
 
-        last_frame = frames.slice(-1)[0];
+        var last_frame = frames.slice(-1)[0];
         if (last_frame === Byte.LF || (last_frame.search(RegExp("" + Byte.NULL + Byte.LF + "*$"))) !== -1) {
             r.frames.push(Frame.unmarshallSingle(last_frame));
         } else {
             r.partial = last_frame;
         }
+
         return r;
     }
 
@@ -185,8 +188,7 @@ class Frame {
     Marshall a Stomp frame
     */
     static marshall(command: string, headers?: IHeaders, body?: string): string {
-        var frame;
-        frame = new Frame(command, headers, body);
+        let frame = new Frame(command, headers, body);
         return frame.toString() + Byte.NULL;
     }
 }
@@ -229,7 +231,6 @@ export class Client {
     }
 
     debug(message: string) {
-        // ????
         console.log(message);
     }
 
@@ -238,18 +239,15 @@ export class Client {
     }
 
     private _transmit(command: string, headers?: IHeaders, body?: string) {
-        var out;
-        out = Frame.marshall(command, headers, body);
-        if (typeof this.debug === "function") {
-            this.debug(">>> " + out);
-        }
+        var out = Frame.marshall(command, headers, body);
+        this.debug(">>> " + out);
+
         while (true) {
             if (out.length > this.maxWebSocketFrameSize) {
                 this.ws.send(out.substring(0, this.maxWebSocketFrameSize));
                 out = out.substring(this.maxWebSocketFrameSize);
-                if (typeof this.debug === "function") {
-                    this.debug("remaining = " + out.length);
-                }
+                this.debug("remaining = " + out.length);
+
             } else {
                 return this.ws.send(out);
             }
@@ -382,35 +380,28 @@ export class Client {
         this.connectCallback = connectCallback;
         this.errorCallback = errorCallback;
 
-        if (typeof this.debug === "function") {
-            this.debug("Opening Web Socket...");
-        }
+        this.debug("Opening Web Socket...");
 
         this.ws.onmessage = this.onMessage.bind(this);
 
-        this.ws.onclose = (function (_this) {
-            return function () {
-                var msg;
-                msg = "Whoops! Lost connection to " + _this.ws.url;
-                if (typeof _this.debug === "function") {
-                    _this.debug(msg);
-                }
-                _this._cleanUp();
-                return typeof errorCallback === "function" ? errorCallback(msg) : void 0;
-            };
-        })(this);
+        this.ws.onclose = () => {
+            var msg;
+            msg = "Whoops! Lost connection to " + this.ws.url;
+            this.debug(msg);
+            this._cleanUp();
 
-        return this.ws.onopen = (function (_this) {
-            return function () {
-                if (typeof _this.debug === "function") {
-                    _this.debug('Web Socket Opened...');
-                }
-                headers["accept-version"] = VERSIONS.supportedVersions();
-                headers["heart-beat"] = [_this.heartbeat.outgoing, _this.heartbeat.incoming].join(',');
-                return _this._transmit("CONNECT", headers);
-            };
-        })(this);
-    };
+            if (errorCallback) {
+                errorCallback(msg);
+            }
+        }
+
+        this.ws.onopen = () => {
+            this.debug('Web Socket Opened...');
+            headers["accept-version"] = VERSIONS.supportedVersions();
+            headers["heart-beat"] = [this.heartbeat.outgoing, this.heartbeat.incoming].join(',');
+            this._transmit("CONNECT", headers);
+        }
+    }
 
     disconnect(disconnectCallback: () => any, headers: IHeaders) {
         if (headers == null) {
@@ -538,6 +529,6 @@ export default class Stomp {
             window.clearInterval(id);
         }
 
-        throw new Error( "clearInterval is undefined");
+        throw new Error("clearInterval is undefined");
     }
 }
