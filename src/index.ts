@@ -14,17 +14,15 @@ const VERSIONS = {
     V1_0: '1.0',
     V1_1: '1.1',
     V1_2: '1.2',
-    supportedVersions: function () {
-        return '1.1,1.0';
-    }
+    supportedVersions: () => '1.1,1.0'
 };
 
-interface Unmarshall {
+interface IUnmarshall {
     frames: Frame[],
     partial: string
 };
 
-interface Headers {
+interface IHeaders {
     host?: string;
     login?: string;
     passcode?: string;
@@ -38,17 +36,17 @@ interface Headers {
     "message-id"?: string;
 }
 
-interface Heartbeat {
+interface IHeartbeat {
     outgoing: number;
     incoming: number;
 }
 
-interface Subscription {
+interface ISubscription {
     id: string;
     unsubscribe: () => any;
 }
 
-interface Transaction {
+interface ITransaction {
     id: string;
     commit: () => any;
     abort: () => any;
@@ -56,13 +54,13 @@ interface Transaction {
 
 class Frame {
     command: string;
-    headers: Headers;
+    headers: IHeaders;
     body: string;
 
-    ack?: (header: Headers) => any;
-    nack?: (header: Headers) => any;
+    ack?: (header: IHeaders) => any;
+    nack?: (header: IHeaders) => any;
 
-    constructor(command: string, headers?: Headers, body?: string) {
+    constructor(command: string, headers?: IHeaders, body?: string) {
         this.command = command;
         this.headers = headers != null ? headers : {};
         this.body = body != null ? body : '';
@@ -81,7 +79,9 @@ class Frame {
         }
         _ref = this.headers;
         for (name in _ref) {
-            if (!_ref.hasOwnProperty(name)) continue;
+            if (!_ref.hasOwnProperty(name)) {
+                continue;
+            }
             value = _ref[name];
             lines.push("" + name + ":" + value);
         }
@@ -111,14 +111,13 @@ class Frame {
     static unmarshallSingle(data: string) {
         // search for 2 consecutives LF byte to split the command
         // and headers from the body
-        var body, chr, command, divider, headerLines, headers: Headers, i, idx, len, line, start, trim, _i, _j, _len, _ref, _ref1;
+        var body, chr, command, divider, headerLines, headers: IHeaders, i, idx, len, line, start, trim, _i, _j, _len, _ref, _ref1;
         divider = data.search(RegExp("" + Byte.LF + Byte.LF));
         headerLines = data.substring(0, divider).split(Byte.LF);
         command = headerLines.shift();
         headers = {};
-        trim = function (str: string) {
-            return str.replace(/^\s+|\s+$/g, '');
-        };
+        trim = (str: string) => str.replace(/^\s+|\s+$/g, '');
+
         _ref = headerLines.reverse();
         for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             line = _ref[_i];
@@ -128,7 +127,7 @@ class Frame {
         body = '';
         start = divider + 2;
         if (headers['content-length']) {
-            len = parseInt(headers['content-length']);
+            len = parseInt(headers['content-length'], 10);
             body = ('' + data).substring(start, start + len);
         } else {
             chr = null;
@@ -141,7 +140,9 @@ class Frame {
             }
         }
 
-        if (!command) throw `Comamnd should not be null??`;
+        if (!command) {
+            throw new Error(`Comamnd should not be null??`);
+        }
         return new Frame(command, headers, body);
     }
 
@@ -155,8 +156,8 @@ class Frame {
     #
     # returns an *array* of Frame objects
     */
-    static unmarshall(datas: string): Unmarshall {
-        var frame, frames, last_frame: string, r: Unmarshall;
+    static unmarshall(datas: string): IUnmarshall {
+        var frame, frames, last_frame: string, r: IUnmarshall;
         frames = datas.split(RegExp("" + Byte.NULL + Byte.LF + "*"));
 
         r = {
@@ -187,7 +188,7 @@ class Frame {
     /*
     # Marshall a Stomp frame
     */
-    static marshall(command: string, headers?: Headers, body?: string): string {
+    static marshall(command: string, headers?: IHeaders, body?: string): string {
         var frame;
         frame = new Frame(command, headers, body);
         return frame.toString() + Byte.NULL;
@@ -204,7 +205,7 @@ export class Client {
     ws: WebSocket;
     counter: number;
     connected: boolean;
-    heartbeat: Heartbeat;
+    heartbeat: IHeartbeat;
     maxWebSocketFrameSize: number;
     subscriptions: { [subscriptionId: string]: (frame: Frame) => any };
     partialData: string;
@@ -225,8 +226,8 @@ export class Client {
         this.counter = 0;
         this.connected = false;
         this.heartbeat = {
+            incoming: 10000,
             outgoing: 10000,
-            incoming: 10000
         };
         this.maxWebSocketFrameSize = 16 * 1024;
         this.subscriptions = {};
@@ -234,15 +235,15 @@ export class Client {
     }
 
     debug(message: string) {
-        var _ref;
-        return typeof window !== "undefined" && window !== null ? (_ref = window.console) != null ? _ref.log(message) : void 0 : void 0;
+        // ????
+        console.log(message);
     }
 
     static now(): number {
         return Date.now();
     }
 
-    _transmit(command: string, headers?: Headers, body?: string) {
+    _transmit(command: string, headers?: IHeaders, body?: string) {
         var out;
         out = Frame.marshall(command, headers, body);
         if (typeof this.debug === "function") {
@@ -261,15 +262,15 @@ export class Client {
         }
     }
 
-    _setupHeartbeat(headers: Headers): void {
-        var serverIncoming: number, serverOutgoing: number, _ref;
-        if ((_ref = headers.version) !== VERSIONS.V1_1 && _ref !== VERSIONS.V1_2) {
+    _setupHeartbeat(headers: IHeaders): void {
+        let { version } = headers;
+        if (version !== VERSIONS.V1_1 && version !== VERSIONS.V1_2) {
             return;
         }
 
-        var parts = headers['heart-beat'].split(",");
-        serverOutgoing = parseInt(parts[0]);
-        serverIncoming = parseInt(parts[1]);
+        let parts = headers['heart-beat'].split(",");
+        let serverOutgoing = parseInt(parts[0], 10);
+        let serverIncoming = parseInt(parts[1], 10);
 
         if (!(this.heartbeat.outgoing === 0 || serverIncoming === 0)) {
             var ttl = Math.max(this.heartbeat.outgoing, serverIncoming);
@@ -297,17 +298,18 @@ export class Client {
     }
 
     onMessage(evt: MessageEvent): any {
-        var arr, c, frame, messageID: string, onreceive, subscription: string, unmarshalledData, _i, _len, _ref;
-
-        var data = typeof ArrayBuffer !== 'undefined' && evt.data instanceof ArrayBuffer ? (arr = new Uint8Array(evt.data), typeof this.debug === "function" ? this.debug("--- got data length: " + arr.length) : void 0, ((function () {
-            var _i, _len, _results;
-            _results = [];
-            for (_i = 0, _len = arr.length; _i < _len; _i++) {
-                c = arr[_i];
-                _results.push(String.fromCharCode(c));
+        var data;
+        if (evt.data instanceof ArrayBuffer) {
+            let arr = new Uint8Array(evt.data);
+            this.debug("--- got data length: " + arr.length);
+            data = '';
+            // tslint:disable-next-line:prefer-for-of
+            for (var c = 0; c < arr.length; c++) {
+                data += String.fromCharCode(arr[c]);
             }
-            return _results;
-        })()).join('')) : evt.data;
+        } else {
+            data = evt.data;
+        }
 
         this.serverActivity = Client.now();
 
@@ -318,35 +320,35 @@ export class Client {
 
         this.debug("<<< " + data);
 
-        unmarshalledData = Frame.unmarshall(this.partialData + data);
+        let unmarshalledData = Frame.unmarshall(this.partialData + data);
         this.partialData = unmarshalledData.partial;
-        _ref = unmarshalledData.frames;
 
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            frame = _ref[_i];
+        for (var frame of unmarshalledData.frames) {
             switch (frame.command) {
                 case "CONNECTED":
                     this.debug("connected to server " + frame.headers.server);
                     this.connected = true;
                     this._setupHeartbeat(frame.headers);
-                    if (this.connectCallback) this.connectCallback(frame);
+                    if (this.connectCallback) {
+                        this.connectCallback(frame);
+                    }
                     break;
 
                 case "MESSAGE":
-                    subscription = frame.headers.subscription as string;
-                    onreceive = this.subscriptions[subscription] || this.onreceive;
+                    let subscription = frame.headers.subscription as string;
+                    let onreceive = this.subscriptions[subscription] || this.onreceive;
 
                     if (onreceive) {
-                        messageID = frame.headers["message-id"] as string;
+                        let messageID = frame.headers["message-id"] as string;
 
-                        frame.ack = (headers: Headers) => {
+                        frame.ack = (headers: IHeaders) => {
                             if (headers == null) {
                                 headers = {};
                             }
                             return this.ack(messageID, subscription, headers);
                         };
 
-                        frame.nack = (headers: Headers) => {
+                        frame.nack = (headers: IHeaders) => {
                             if (headers == null) {
                                 headers = {};
                             }
@@ -362,11 +364,15 @@ export class Client {
                     break;
 
                 case "RECEIPT":
-                    if (this.onreceipt) this.onreceipt(frame);
+                    if (this.onreceipt) {
+                        this.onreceipt(frame);
+                    }
                     break;
 
                 case "ERROR":
-                    if (this.errorCallback) this.errorCallback(frame);
+                    if (this.errorCallback) {
+                        this.errorCallback(frame);
+                    }
                     break;
 
                 default:
@@ -389,7 +395,7 @@ export class Client {
     # The errorCallback is optional and the 2 first forms allow to pass other
     # headers in addition to `client`, `passcode` and `host`.
     */
-    connect(headers: Headers, connectCallback: (frame: Frame) => any, errorCallback?: (frame: Frame | string) => any) {
+    connect(headers: IHeaders, connectCallback: (frame: Frame) => any, errorCallback?: (frame: Frame | string) => any) {
         this.connectCallback = connectCallback;
         this.errorCallback = errorCallback;
 
@@ -423,7 +429,7 @@ export class Client {
         })(this);
     };
 
-    disconnect(disconnectCallback: () => any, headers: Headers) {
+    disconnect(disconnectCallback: () => any, headers: IHeaders) {
         if (headers == null) {
             headers = {};
         }
@@ -432,7 +438,9 @@ export class Client {
         this.ws.close();
         this._cleanUp();
 
-        if (disconnectCallback) disconnectCallback();
+        if (disconnectCallback) {
+            disconnectCallback();
+        }
     }
 
     _cleanUp() {
@@ -445,7 +453,7 @@ export class Client {
         }
     }
 
-    send(destination: string, headers?: Headers, body?: string) {
+    send(destination: string, headers?: IHeaders, body?: string) {
         if (headers == null) {
             headers = {};
         }
@@ -456,7 +464,7 @@ export class Client {
         return this._transmit("SEND", headers, body);
     }
 
-    subscribe(destination: string, callback: (frame: Frame) => any, headers: Headers): Subscription {
+    subscribe(destination: string, callback: (frame: Frame) => any, headers?: IHeaders): ISubscription {
         if (headers == null) {
             headers = {};
         }
@@ -471,7 +479,7 @@ export class Client {
         this.subscriptions[id] = callback;
         this._transmit("SUBSCRIBE", headers);
 
-        var subscription: Subscription = {
+        var subscription: ISubscription = {
             id: headers.id,
             unsubscribe: () => this.unsubscribe(id)
         };
@@ -481,12 +489,10 @@ export class Client {
 
     unsubscribe(id: string) {
         delete this.subscriptions[id];
-        return this._transmit("UNSUBSCRIBE", {
-            id: id
-        });
+        return this._transmit("UNSUBSCRIBE", { id });
     }
 
-    begin(transaction: string): Transaction {
+    begin(transaction: string): ITransaction {
         var txid: string;
         txid = transaction || "tx-" + this.counter++;
         this._transmit("BEGIN", {
@@ -494,25 +500,21 @@ export class Client {
         });
 
         return {
-            id: txid,
+            abort: () => this.abort(txid),
             commit: () => this.commit(txid),
-            abort: () => this.abort(txid)
+            id: txid,
         };
     }
 
     commit(transaction: string) {
-        return this._transmit("COMMIT", {
-            transaction: transaction
-        });
+        return this._transmit("COMMIT", { transaction });
     }
 
     abort(transaction: string) {
-        return this._transmit("ABORT", {
-            transaction: transaction
-        });
+        return this._transmit("ABORT", { transaction });
     }
 
-    ack(messageID: string, subscription: string, headers?: Headers) {
+    ack(messageID: string, subscription: string, headers?: IHeaders) {
         if (headers == null) {
             headers = {};
         }
@@ -521,7 +523,7 @@ export class Client {
         return this._transmit("ACK", headers);
     }
 
-    nack(messageID: string, subscription: string, headers?: Headers) {
+    nack(messageID: string, subscription: string, headers?: IHeaders) {
         if (headers == null) {
             headers = {};
         }
@@ -531,20 +533,12 @@ export class Client {
     }
 }
 
-export class Stomp {
-    static WebSocketClass: any; // ???
-
-    client(url: string, protocols: string[]) {
-        var klass, ws;
+export default class Stomp {
+    static client(url: string, protocols?: string[]) {
         if (protocols == null) {
             protocols = ['v10.stomp', 'v11.stomp'];
         }
-        klass = Stomp.WebSocketClass || WebSocket;
-        ws = new klass(url, protocols);
-        return new Client(ws);
-    }
-
-    over(ws: WebSocket) {
+        let ws = new WebSocket(url, protocols);
         return new Client(ws);
     }
 
@@ -553,7 +547,7 @@ export class Stomp {
             return window.setInterval(f, interval);
         }
 
-        throw "setInterval is undefined";
+        throw new Error("setInterval is undefined");
     }
 
     static clearInterval(id: number) {
@@ -561,19 +555,6 @@ export class Stomp {
             window.clearInterval(id);
         }
 
-        throw "clearInterval is undefined";
+        throw new Error( "clearInterval is undefined");
     }
-}
-
-const stomp = new Stomp();
-
-if (typeof exports !== "undefined" && exports !== null) {
-    exports.Stomp = stomp;
-}
-
-if (typeof window !== "undefined" && window !== null) {
-    window["Stomp"] = stomp;
-
-} else if (!exports) {
-    self["Stomp"] = stomp;
 }

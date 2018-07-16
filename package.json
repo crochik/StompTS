@@ -1,0 +1,30 @@
+{
+  "name": "stompts",
+  "version": "0.0.1",
+  "description": "Port of StompJS to TypeScript",
+  "main": "index.js",
+  "types": "src/index.ts",
+  "scripts": {
+    "prepare": "tsc",
+    "build": "tsc",
+    "start": "tsc -w"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/crochik/stompts.git"
+  },
+  "keywords": [
+    "websocket",
+    "stomp",
+    "typescript"
+  ],
+  "author": "Felipe Crochik",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/crochik/stompts/issues"
+  },
+  "homepage": "https://github.com/crochik/stompts#readme",
+  "devDependencies": {
+    "typescript": "^2.9.2"
+  }
+}
