@@ -147,14 +147,10 @@ class Frame {
     }
 
     /*
-    # Split the data before unmarshalling every single STOMP frame.
-    # Web socket servers can send multiple frames in a single websocket message.
-    # If the message size exceeds the websocket message size, then a single
-    # frame can be fragmented across multiple messages.
-    #
-    # `datas` is a string.
-    #
-    # returns an *array* of Frame objects
+    Split the data before unmarshalling every single STOMP frame.
+    Web socket servers can send multiple frames in a single websocket message.
+    If the message size exceeds the websocket message size, then a single
+    frame can be fragmented across multiple messages.
     */
     static unmarshall(datas: string): IUnmarshall {
         var frame, frames, last_frame: string, r: IUnmarshall;
@@ -186,7 +182,7 @@ class Frame {
     }
 
     /*
-    # Marshall a Stomp frame
+    Marshall a Stomp frame
     */
     static marshall(command: string, headers?: IHeaders, body?: string): string {
         var frame;
@@ -196,10 +192,8 @@ class Frame {
 }
 
 /*
-# ##STOMP Client Class
-#
-# All STOMP protocol is exposed as methods of this class (`connect()`,
-# `send()`, etc.)
+STOMP Client Class
+All STOMP protocol is exposed as methods of this class (`connect()`, `send()`, etc.)
 */
 export class Client {
     ws: WebSocket;
@@ -243,7 +237,7 @@ export class Client {
         return Date.now();
     }
 
-    _transmit(command: string, headers?: IHeaders, body?: string) {
+    private _transmit(command: string, headers?: IHeaders, body?: string) {
         var out;
         out = Frame.marshall(command, headers, body);
         if (typeof this.debug === "function") {
@@ -262,7 +256,7 @@ export class Client {
         }
     }
 
-    _setupHeartbeat(headers: IHeaders): void {
+    private _setupHeartbeat(headers: IHeaders): void {
         let { version } = headers;
         if (version !== VERSIONS.V1_1 && version !== VERSIONS.V1_2) {
             return;
@@ -382,18 +376,7 @@ export class Client {
     }
 
     /*
-    # [CONNECT Frame](http://stomp.github.com/stomp-specification-1.1.html#CONNECT_or_STOMP_Frame)
-    #
-    # The `connect` method accepts different number of arguments and types:
-    #
-    # * `connect(headers, connectCallback)`
-    # * `connect(headers, connectCallback, errorCallback)`
-    # * `connect(login, passcode, connectCallback)`
-    # * `connect(login, passcode, connectCallback, errorCallback)`
-    # * `connect(login, passcode, connectCallback, errorCallback, host)`
-    #
-    # The errorCallback is optional and the 2 first forms allow to pass other
-    # headers in addition to `client`, `passcode` and `host`.
+    [CONNECT Frame](http://stomp.github.com/stomp-specification-1.1.html#CONNECT_or_STOMP_Frame)
     */
     connect(headers: IHeaders, connectCallback: (frame: Frame) => any, errorCallback?: (frame: Frame | string) => any) {
         this.connectCallback = connectCallback;
@@ -443,7 +426,7 @@ export class Client {
         }
     }
 
-    _cleanUp() {
+    private _cleanUp() {
         this.connected = false;
         if (this.pinger) {
             Stomp.clearInterval(this.pinger);
