@@ -1,7 +1,7 @@
 {
   "name": "stompts",
-  "version": "0.0.4",
-  "description": "Port of StompJS to TypeScript",
+  "version": "0.0.8",
+  "description": "Fork of StompJS in TypeScript",
   "main": "index.js",
   "types": "src/index.ts",
   "scripts": {
@@ -25,7 +25,7 @@
     "url": "https://github.com/crochik/stompts/issues"
   },
   "homepage": "https://github.com/crochik/stompts#readme",
-  "devDependencies": {
+  "dependencies": {
     "typescript": "^2.9.2"
   }
 }

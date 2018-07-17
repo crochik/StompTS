@@ -8,11 +8,11 @@ This is manual port of it, starting with the javascript version.
 # How to use (work in progress)
 
 ```
-    import Stomp from 'stompts';
+    import * as stomp from 'stompts';
 
     // ...
 
-    var client = Stomp.client('ws://localhost:15674/ws');
+    var client = new stomp.Client('ws://localhost:15674/ws');
     client.connect(
       {
         login: 'guest',

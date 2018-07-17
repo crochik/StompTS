@@ -1,10 +1,15 @@
 /*
-   Stomp Over WebSocket http://www.jmesnil.net/stomp-websocket/doc/ | Apache License V2.0
+    Stomp Over WebSocket https://github.com/crochik/stompts | Apache License V2.0
 
-   Copyright (C) 2010-2013 [Jeff Mesnil](http://jmesnil.net/)
-   Copyright (C) 2012 [FuseSource, Inc.](http://fusesource.com)
+    This is a typescript version of stompjs with modifications. 
+    It is not intended as replacement of it or to be backwards compatible with it.
+
+    Original Header:
+        Stomp Over WebSocket http://www.jmesnil.net/stomp-websocket/doc/ | Apache License V2.0
+
+        Copyright (C) 2010-2013 [Jeff Mesnil](http://jmesnil.net/)
+        Copyright (C) 2012 [FuseSource, Inc.](http://fusesource.com)
  */
-
 const Byte = {
     LF: '\x0A',
     NULL: '\x00'
@@ -22,7 +27,7 @@ interface IUnmarshall {
     partial: string
 };
 
-interface IHeaders {
+export interface IHeaders {
     host?: string;
     login?: string;
     passcode?: string;
@@ -41,18 +46,18 @@ interface IHeartbeat {
     incoming: number;
 }
 
-interface ISubscription {
+export interface ISubscription {
     id: string;
     unsubscribe: () => any;
 }
 
-interface ITransaction {
+export interface ITransaction {
     id: string;
     commit: () => any;
     abort: () => any;
 }
 
-class Frame {
+export class Frame {
     command: string;
     headers: IHeaders;
     body: string;
@@ -216,7 +221,14 @@ export class Client {
     onreceipt?: (frame: Frame) => any;
     onreceive?: (frame: Frame) => any;
 
-    constructor(ws: WebSocket) {
+    constructor(url: string, protocols?: string[]) {
+        if (protocols == null) {
+            protocols = ['v10.stomp', 'v11.stomp'];
+        }
+        this.init(new WebSocket(url, protocols));
+    }
+    
+    init(ws: WebSocket) {
         this.ws = ws;
         this.ws.binaryType = "arraybuffer";
         this.counter = 0;
@@ -231,7 +243,7 @@ export class Client {
     }
 
     debug(message: string) {
-        console.log(message);
+        console.debug(message);
     }
 
     static now(): number {
@@ -268,7 +280,7 @@ export class Client {
             var ttl = Math.max(this.heartbeat.outgoing, serverIncoming);
             this.debug("send PING every " + ttl + "ms");
 
-            this.pinger = Stomp.setInterval(ttl, () => {
+            this.pinger = setInterval(ttl, () => {
                 this.ws.send(Byte.LF);
                 this.debug(">>> PING");
             });
@@ -278,7 +290,7 @@ export class Client {
             var ttl = Math.max(this.heartbeat.incoming, serverOutgoing);
             this.debug("check PONG every " + ttl + "ms");
 
-            this.ponger = Stomp.setInterval(ttl, () => {
+            this.ponger = setInterval(ttl, () => {
                 var delta;
                 delta = Client.now() - this.serverActivity;
                 if (delta > ttl * 2) {
@@ -420,10 +432,10 @@ export class Client {
     private _cleanUp() {
         this.connected = false;
         if (this.pinger) {
-            Stomp.clearInterval(this.pinger);
+            clearInterval(this.pinger);
         }
         if (this.ponger) {
-            return Stomp.clearInterval(this.ponger);
+            return clearInterval(this.ponger);
         }
     }
 
@@ -507,28 +519,18 @@ export class Client {
     }
 }
 
-export default class Stomp {
-    static client(url: string, protocols?: string[]) {
-        if (protocols == null) {
-            protocols = ['v10.stomp', 'v11.stomp'];
-        }
-        let ws = new WebSocket(url, protocols);
-        return new Client(ws);
+function setInterval(interval: number, f: () => any): number {
+    if (typeof window !== "undefined" && window !== null) {
+        return window.setInterval(f, interval);
     }
 
-    static setInterval(interval: number, f: () => any): number {
-        if (typeof window !== "undefined" && window !== null) {
-            return window.setInterval(f, interval);
-        }
+    throw new Error("setInterval is undefined");
+}
 
-        throw new Error("setInterval is undefined");
+function clearInterval(id: number) {
+    if (typeof window !== "undefined" && window !== null) {
+        window.clearInterval(id);
     }
 
-    static clearInterval(id: number) {
-        if (typeof window !== "undefined" && window !== null) {
-            window.clearInterval(id);
-        }
-
-        throw new Error("clearInterval is undefined");
-    }
+    throw new Error("clearInterval is undefined");
 }
