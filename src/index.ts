@@ -82,7 +82,7 @@ export class Frame {
         if (skipContentLength) {
             delete this.headers['content-length'];
         }
-        
+
         for (var name in this.headers) {
             if (!this.headers.hasOwnProperty(name)) {
                 continue;
@@ -108,8 +108,8 @@ export class Frame {
         if (s) {
             let str = encodeURI(s).match(/%..|./g);
             return str != null ? str.length : 0;
-        } 
-        
+        }
+
         return 0;
     }
 
@@ -123,7 +123,7 @@ export class Frame {
         var divider = data.search(RegExp("" + Byte.LF + Byte.LF));
         var headerLines = data.substring(0, divider).split(Byte.LF);
         var command = headerLines.shift();
-        var headers : IHeaders = {};
+        var headers: IHeaders = {};
         var trim = (str: string) => str.replace(/^\s+|\s+$/g, '');
 
         var _ref = headerLines.reverse();
@@ -163,7 +163,7 @@ export class Frame {
     */
     static unmarshall(datas: string): IUnmarshall {
         let frames = datas.split(RegExp("" + Byte.NULL + Byte.LF + "*"));
-        let r : IUnmarshall = {
+        let r: IUnmarshall = {
             frames: [],
             partial: ''
         };
@@ -227,7 +227,7 @@ export class Client {
         }
         this.init(new WebSocket(url, protocols));
     }
-    
+
     init(ws: WebSocket) {
         this.ws = ws;
         this.ws.binaryType = "arraybuffer";
