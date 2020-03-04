@@ -27,19 +27,7 @@ interface IUnmarshall {
     partial: string
 };
 
-export interface IHeaders {
-    host?: string;
-    login?: string;
-    passcode?: string;
-
-    id?: string;
-    version?: string;
-    destination?: string;
-    server?: string;
-    subscription?: string;
-    transaction?: string;
-    "message-id"?: string;
-}
+export interface IHeaders { [key: string]: string }
 
 interface IHeartbeat {
     outgoing: number;
@@ -78,7 +66,7 @@ export class Frame {
     toString() {
         var lines = [this.command];
 
-        var skipContentLength = this.headers['content-length'] === false ? true : false;
+        var skipContentLength = !this.headers['content-length'] ? true : false;
         if (skipContentLength) {
             delete this.headers['content-length'];
         }
@@ -198,6 +186,22 @@ export class Frame {
     }
 }
 
+function setInterval(interval: number, f: () => any): number {
+    if (typeof window !== "undefined" && window !== null) {
+        return window.setInterval(f, interval);
+    }
+
+    throw new Error("setInterval is undefined");
+}
+
+function clearInterval(id: number) {
+    if (typeof window !== "undefined" && window !== null) {
+        return window.clearInterval(id);
+    }
+
+    throw new Error("clearInterval is undefined");
+}
+
 /*
 STOMP Client Class
 All STOMP protocol is exposed as methods of this class (`connect()`, `send()`, etc.)
@@ -208,8 +212,9 @@ export class Client {
     connected: boolean;
     heartbeat: IHeartbeat;
     maxWebSocketFrameSize: number;
-    subscriptions: { [subscriptionId: string]: (frame: Frame) => any };
     partialData: string;
+    logOutput?: string;
+    onMessage?: (subscription: string, message: Frame) => void;
 
     pinger?: number;
     ponger?: number;
@@ -221,15 +226,13 @@ export class Client {
     onreceipt?: (frame: Frame) => any;
     onreceive?: (frame: Frame) => any;
 
-    constructor(url: string, protocols?: string[]) {
+    constructor(url: string, protocols?: string[], logOutput?: 'log' | 'debug') {
+        this.logOutput = logOutput;
+
         if (protocols == null) {
             protocols = ['v10.stomp', 'v11.stomp'];
         }
-        this.init(new WebSocket(url, protocols));
-    }
-
-    init(ws: WebSocket) {
-        this.ws = ws;
+        this.ws = new WebSocket(url, protocols);
         this.ws.binaryType = "arraybuffer";
         this.counter = 0;
         this.connected = false;
@@ -238,12 +241,19 @@ export class Client {
             outgoing: 10000,
         };
         this.maxWebSocketFrameSize = 16 * 1024;
-        this.subscriptions = {};
         this.partialData = '';
+        this.serverActivity = Client.now();
     }
 
     debug(message: string) {
-        console.debug(message);
+        switch (this.logOutput) {
+            case 'debug':
+                console.debug(message);
+                break;
+            case 'log':
+                console.log(message);
+                break;
+        }
     }
 
     static now(): number {
@@ -276,8 +286,9 @@ export class Client {
         let serverOutgoing = parseInt(parts[0], 10);
         let serverIncoming = parseInt(parts[1], 10);
 
+        var ttl: number;
         if (!(this.heartbeat.outgoing === 0 || serverIncoming === 0)) {
-            var ttl = Math.max(this.heartbeat.outgoing, serverIncoming);
+            ttl = Math.max(this.heartbeat.outgoing, serverIncoming);
             this.debug("send PING every " + ttl + "ms");
 
             this.pinger = setInterval(ttl, () => {
@@ -287,7 +298,7 @@ export class Client {
         }
 
         if (!(this.heartbeat.incoming === 0 || serverOutgoing === 0)) {
-            var ttl = Math.max(this.heartbeat.incoming, serverOutgoing);
+            ttl = Math.max(this.heartbeat.incoming, serverOutgoing);
             this.debug("check PONG every " + ttl + "ms");
 
             this.ponger = setInterval(ttl, () => {
@@ -301,7 +312,7 @@ export class Client {
         }
     }
 
-    onMessage(evt: MessageEvent): any {
+    _onMessage = (evt: MessageEvent) => {
         var data;
         if (evt.data instanceof ArrayBuffer) {
             let arr = new Uint8Array(evt.data);
@@ -340,9 +351,8 @@ export class Client {
 
                 case "MESSAGE":
                     let subscription = frame.headers.subscription as string;
-                    let onreceive = this.subscriptions[subscription] || this.onreceive;
 
-                    if (onreceive) {
+                    if (this.onMessage) {
                         let messageID = frame.headers["message-id"] as string;
 
                         frame.ack = (headers: IHeaders) => {
@@ -359,7 +369,7 @@ export class Client {
                             return this.nack(messageID, subscription, headers);
                         };
 
-                        onreceive(frame);
+                        this.onMessage(subscription, frame);
 
                     } else {
                         this.debug("Unhandled received MESSAGE: " + frame);
@@ -394,7 +404,7 @@ export class Client {
 
         this.debug("Opening Web Socket...");
 
-        this.ws.onmessage = this.onMessage.bind(this);
+        this.ws.onmessage = this._onMessage;
 
         this.ws.onclose = () => {
             var msg;
@@ -450,7 +460,7 @@ export class Client {
         return this._transmit("SEND", headers, body);
     }
 
-    subscribe(destination: string, callback: (frame: Frame) => any, headers?: IHeaders): ISubscription {
+    subscribe(destination: string, headers?: IHeaders): ISubscription {
         if (headers == null) {
             headers = {};
         }
@@ -462,7 +472,6 @@ export class Client {
         headers.destination = destination;
 
         var id: string = headers.id;
-        this.subscriptions[id] = callback;
         this._transmit("SUBSCRIBE", headers);
 
         var subscription: ISubscription = {
@@ -474,7 +483,6 @@ export class Client {
     }
 
     unsubscribe(id: string) {
-        delete this.subscriptions[id];
         return this._transmit("UNSUBSCRIBE", { id });
     }
 
@@ -517,20 +525,4 @@ export class Client {
         headers.subscription = subscription;
         return this._transmit("NACK", headers);
     }
-}
-
-function setInterval(interval: number, f: () => any): number {
-    if (typeof window !== "undefined" && window !== null) {
-        return window.setInterval(f, interval);
-    }
-
-    throw new Error("setInterval is undefined");
-}
-
-function clearInterval(id: number) {
-    if (typeof window !== "undefined" && window !== null) {
-        window.clearInterval(id);
-    }
-
-    throw new Error("clearInterval is undefined");
 }
